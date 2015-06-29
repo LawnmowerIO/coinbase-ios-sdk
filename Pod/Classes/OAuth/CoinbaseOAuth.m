@@ -21,7 +21,8 @@ static NSURL * __strong baseURL;
 + (CoinbaseOAuthAuthenticationMechanism)startOAuthAuthenticationWithClientId:(NSString *)clientId
                                                                        scope:(NSString *)scope
                                                                  redirectUri:(NSString *)redirectUri
-                                                                        meta:(NSDictionary *)meta {
+                                                                  newAccount:(BOOL)newAccount
+                                                                        meta:(NSDictionary *)meta{
     NSString *path = [NSString stringWithFormat: @"/oauth/authorize?response_type=code&client_id=%@", clientId];
     if (scope) {
         path = [path stringByAppendingFormat:@"&scope=%@", [self URLEncodedStringFromString:scope]];
@@ -46,6 +47,14 @@ static NSURL * __strong baseURL;
     }
 
     if (!appSwitchSuccessful) {
+        // The user does not have the app.
+        // Let's see if this is a new account
+        if (newAccount) {
+            // Replace the base URL so it redirects to new account page on CB
+            path = [path stringByReplacingOccurrencesOfString:@"/oauth/authorize?"
+                         withString:@"/users/oauth_signup?"];
+        }
+
         NSURL *base = [NSURL URLWithString:path relativeToURL:(baseURL == nil ? [NSURL URLWithString:@"https://www.coinbase.com/"] : baseURL)];
         NSURL *webUrl = [[NSURL URLWithString:path relativeToURL:base] absoluteURL];
         BOOL browserSwitchSuccessful = [[UIApplication sharedApplication] openURL:webUrl];
@@ -73,7 +82,7 @@ static NSURL * __strong baseURL;
 
     // Get code from URL and check for error.
     NSString *code = params[@"code"];
-    
+
     if (params[@"error_description"] != nil) {
         NSString *errorDescription = [[params[@"error_description"] stringByReplacingOccurrencesOfString:@"+" withString:@" "]
                                       stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
@@ -95,7 +104,7 @@ static NSURL * __strong baseURL;
         completion(@{@"code": code}, nil);
         return;
     }
-    
+
     // Make token request
     // Obtain original redirect URI by removing 'code' parameter from URI
     NSString *redirectUri = [[url absoluteString] stringByReplacingOccurrencesOfString:[url query] withString:@""];
